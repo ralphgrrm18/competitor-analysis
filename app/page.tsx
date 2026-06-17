@@ -169,7 +169,7 @@ export default function Home() {
           </div>
 
           {/* Row 2: Source toggle */}
-          <div className="flex flex-col gap-1.5">
+          <div className="flex flex-col gap-2">
             <label className="text-sm font-medium text-gray-700">Source</label>
             <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm w-fit">
               <button
@@ -195,11 +195,61 @@ export default function Home() {
                 Google Search
               </button>
             </div>
-            <p className="text-xs text-gray-400">
-              {scrapeMode === "maps"
-                ? "Ranks by proximity to your coordinates — mirrors google.com/maps results"
-                : "Ranks by search algorithm + local signals — mirrors google.com/search local tab"}
-            </p>
+
+            {/* Comparison table */}
+            <div className="overflow-x-auto rounded-lg border border-gray-100 text-xs mt-1">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="bg-gray-50">
+                    <th className="w-28 px-3 py-2 text-left font-medium text-gray-500 border-b border-r border-gray-100" />
+                    <th className={`px-3 py-2 text-left font-semibold border-b border-r border-gray-100 transition-colors ${scrapeMode === "maps" ? "text-blue-600 bg-blue-50" : "text-gray-600"}`}>
+                      Google Maps
+                    </th>
+                    <th className={`px-3 py-2 text-left font-semibold border-b border-gray-100 transition-colors ${scrapeMode === "search" ? "text-blue-600 bg-blue-50" : "text-gray-600"}`}>
+                      Google Search Local
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  <tr>
+                    <td className="px-3 py-2 font-medium text-gray-500 border-r border-gray-100 whitespace-nowrap">URL</td>
+                    <td className={`px-3 py-2 text-gray-600 border-r border-gray-100 font-mono text-[10px] ${scrapeMode === "maps" ? "bg-blue-50/40" : ""}`}>
+                      maps.google.com/search/&#123;keyword&#125;/@lat,lng
+                    </td>
+                    <td className={`px-3 py-2 text-gray-600 font-mono text-[10px] ${scrapeMode === "search" ? "bg-blue-50/40" : ""}`}>
+                      google.com/search?q=&#123;keyword&#125;+&#123;location&#125;&amp;udm=1
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-medium text-gray-500 border-r border-gray-100 whitespace-nowrap">Ranking signal</td>
+                    <td className={`px-3 py-2 text-gray-600 border-r border-gray-100 ${scrapeMode === "maps" ? "bg-blue-50/40" : ""}`}>
+                      Proximity to GPS coords + relevance
+                    </td>
+                    <td className={`px-3 py-2 text-gray-600 ${scrapeMode === "search" ? "bg-blue-50/40" : ""}`}>
+                      Search algorithm + local pack signals
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-medium text-gray-500 border-r border-gray-100 whitespace-nowrap">Includes ads?</td>
+                    <td className={`px-3 py-2 text-gray-600 border-r border-gray-100 ${scrapeMode === "maps" ? "bg-blue-50/40" : ""}`}>
+                      Occasionally
+                    </td>
+                    <td className={`px-3 py-2 text-gray-600 ${scrapeMode === "search" ? "bg-blue-50/40" : ""}`}>
+                      Yes, more frequently
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="px-3 py-2 font-medium text-gray-500 border-r border-gray-100 whitespace-nowrap">Mimics</td>
+                    <td className={`px-3 py-2 text-gray-600 border-r border-gray-100 ${scrapeMode === "maps" ? "bg-blue-50/40" : ""}`}>
+                      Someone searching inside Google Maps
+                    </td>
+                    <td className={`px-3 py-2 text-gray-600 ${scrapeMode === "search" ? "bg-blue-50/40" : ""}`}>
+                      Someone Googling on desktop and seeing the local results tab
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
           </div>
 
           <button
