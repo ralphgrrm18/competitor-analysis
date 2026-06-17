@@ -83,11 +83,9 @@ export default function CompetitorCard({
         )}
       </div>
 
-      {competitor.categories.length > 0 && (
+      {competitor.category && (
         <div className="flex flex-wrap gap-1">
-          {competitor.categories.map((c) => (
-            <Badge key={c} label={c} />
-          ))}
+          <Badge label={competitor.category} />
         </div>
       )}
 

@@ -4,17 +4,9 @@ import { useState } from "react";
 import CompetitorCard from "@/components/CompetitorCard";
 import type { Competitor } from "@/lib/places";
 
-const RADIUS_OPTIONS = [
-  { label: "1 km", value: 1000 },
-  { label: "5 km", value: 5000 },
-  { label: "10 km", value: 10000 },
-  { label: "20 km", value: 20000 },
-];
-
 export default function Home() {
   const [keyword, setKeyword] = useState("");
   const [location, setLocation] = useState("");
-  const [radius, setRadius] = useState(5000);
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Competitor[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -32,12 +24,10 @@ export default function Home() {
       const res = await fetch("/api/competitors", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keyword: keyword.trim(), location: location.trim(), radius }),
+        body: JSON.stringify({ keyword: keyword.trim(), location: location.trim() }),
       });
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
-
       setResults(data.competitors);
       setSearchedFor({ keyword: keyword.trim(), location: location.trim() });
     } catch (err: unknown) {
@@ -53,7 +43,7 @@ export default function Home() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Competitor Analysis</h1>
           <p className="text-gray-500 mt-1 text-sm">
-            Search Google Maps by keyword + location to surface local competitors.
+            Real-time Google Maps results scraped from the exact geolocation you specify.
           </p>
         </div>
 
@@ -83,7 +73,7 @@ export default function Home() {
               <input
                 id="location"
                 type="text"
-                placeholder="e.g. New York, NY or 10001"
+                placeholder="e.g. New York, NY or 90210"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
                 className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -92,30 +82,12 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-medium text-gray-700">Search radius:</span>
-            {RADIUS_OPTIONS.map((opt) => (
-              <button
-                key={opt.value}
-                type="button"
-                onClick={() => setRadius(opt.value)}
-                className={`text-sm px-3 py-1.5 rounded-lg border transition-colors ${
-                  radius === opt.value
-                    ? "bg-blue-600 text-white border-blue-600"
-                    : "bg-white text-gray-700 border-gray-300 hover:border-blue-400"
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-
           <button
             type="submit"
             disabled={loading || !keyword.trim() || !location.trim()}
             className="self-start rounded-lg bg-blue-600 text-white px-6 py-2.5 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? "Searching..." : "Search Competitors"}
+            {loading ? "Searching…" : "Search Competitors"}
           </button>
         </form>
 
@@ -131,7 +103,8 @@ export default function Home() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
-            <span className="text-sm">Fetching competitors from Google Maps…</span>
+            <span className="text-sm font-medium">Opening browser, spoofing location, scraping results…</span>
+            <span className="text-xs text-gray-400">This takes ~20–30 seconds</span>
           </div>
         )}
 
@@ -155,12 +128,12 @@ export default function Home() {
 
             {results.length === 0 ? (
               <div className="text-center py-16 text-gray-400 text-sm">
-                No results found. Try a broader keyword or larger radius.
+                No results found. Try a different keyword or location.
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {results.map((c, i) => (
-                  <CompetitorCard key={c.id} competitor={c} rank={i + 1} />
+                {results.map((c) => (
+                  <CompetitorCard key={c.rank} competitor={c} rank={c.rank} />
                 ))}
               </div>
             )}
@@ -173,20 +146,20 @@ export default function Home() {
 
 function exportCSV(competitors: Competitor[], keyword: string) {
   const headers = [
-    "Rank", "Name", "Address", "Rating", "Reviews", "Phone", "Website",
-    "Categories", "Photos", "Open Now", "Maps URL",
+    "Rank", "Name", "Address", "Rating", "Reviews", "Category",
+    "Phone", "Website", "Open Now", "Photos", "Maps URL",
   ];
-  const rows = competitors.map((c, i) => [
-    i + 1,
+  const rows = competitors.map((c) => [
+    c.rank,
     `"${c.name.replace(/"/g, '""')}"`,
     `"${c.address.replace(/"/g, '""')}"`,
     c.rating ?? "",
     c.reviewCount ?? "",
+    `"${c.category.replace(/"/g, '""')}"`,
     c.phone ?? "",
     c.website ?? "",
-    `"${c.categories.join(", ")}"`,
-    c.photoCount,
     c.openNow === true ? "Yes" : c.openNow === false ? "No" : "",
+    c.photoCount,
     c.mapsUrl,
   ]);
 
