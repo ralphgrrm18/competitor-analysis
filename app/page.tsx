@@ -5,17 +5,19 @@ import CompetitorCard from "@/components/CompetitorCard";
 import type { Competitor } from "@/lib/places";
 
 type LocationMode = "address" | "coords";
+type ScrapeMode = "maps" | "search";
 
 export default function Home() {
   const [keyword, setKeyword] = useState("");
   const [locationMode, setLocationMode] = useState<LocationMode>("address");
+  const [scrapeMode, setScrapeMode] = useState<ScrapeMode>("maps");
   const [location, setLocation] = useState("");
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Competitor[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [searchedFor, setSearchedFor] = useState<{ keyword: string; label: string } | null>(null);
+  const [searchedFor, setSearchedFor] = useState<{ keyword: string; label: string; mode: ScrapeMode } | null>(null);
 
   const canSubmit =
     keyword.trim() &&
@@ -37,8 +39,8 @@ export default function Home() {
 
       const body =
         locationMode === "coords"
-          ? { keyword: keyword.trim(), lat: parseFloat(lat), lng: parseFloat(lng) }
-          : { keyword: keyword.trim(), location: location.trim() };
+          ? { keyword: keyword.trim(), lat: parseFloat(lat), lng: parseFloat(lng), mode: scrapeMode }
+          : { keyword: keyword.trim(), location: location.trim(), mode: scrapeMode };
 
       const res = await fetch(`${scraperUrl}/api/scrape`, {
         method: "POST",
@@ -55,6 +57,7 @@ export default function Home() {
           locationMode === "coords"
             ? `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}`
             : location.trim(),
+        mode: scrapeMode,
       });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
@@ -165,6 +168,40 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Row 2: Source toggle */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-sm font-medium text-gray-700">Source</label>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm w-fit">
+              <button
+                type="button"
+                onClick={() => setScrapeMode("maps")}
+                className={`px-4 py-2 transition-colors ${
+                  scrapeMode === "maps"
+                    ? "bg-blue-600 text-white font-medium"
+                    : "bg-white text-gray-500 hover:bg-gray-50"
+                }`}
+              >
+                Google Maps
+              </button>
+              <button
+                type="button"
+                onClick={() => setScrapeMode("search")}
+                className={`px-4 py-2 transition-colors ${
+                  scrapeMode === "search"
+                    ? "bg-blue-600 text-white font-medium"
+                    : "bg-white text-gray-500 hover:bg-gray-50"
+                }`}
+              >
+                Google Search
+              </button>
+            </div>
+            <p className="text-xs text-gray-400">
+              {scrapeMode === "maps"
+                ? "Ranks by proximity to your coordinates — mirrors google.com/maps results"
+                : "Ranks by search algorithm + local signals — mirrors google.com/search local tab"}
+            </p>
+          </div>
+
           <button
             type="submit"
             disabled={loading || !canSubmit}
@@ -198,6 +235,11 @@ export default function Home() {
                 <span className="font-semibold text-gray-900">{results.length} results</span>{" "}
                 for <span className="font-medium">"{searchedFor?.keyword}"</span> near{" "}
                 <span className="font-medium">{searchedFor?.label}</span>
+                {searchedFor?.mode && (
+                  <span className="ml-2 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                    {searchedFor.mode === "maps" ? "Google Maps" : "Google Search"}
+                  </span>
+                )}
               </p>
               {results.length > 0 && (
                 <button
