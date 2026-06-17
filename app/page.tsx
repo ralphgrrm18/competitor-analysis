@@ -4,17 +4,28 @@ import { useState } from "react";
 import CompetitorCard from "@/components/CompetitorCard";
 import type { Competitor } from "@/lib/places";
 
+type LocationMode = "address" | "coords";
+
 export default function Home() {
   const [keyword, setKeyword] = useState("");
+  const [locationMode, setLocationMode] = useState<LocationMode>("address");
   const [location, setLocation] = useState("");
+  const [lat, setLat] = useState("");
+  const [lng, setLng] = useState("");
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<Competitor[] | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [searchedFor, setSearchedFor] = useState<{ keyword: string; location: string } | null>(null);
+  const [searchedFor, setSearchedFor] = useState<{ keyword: string; label: string } | null>(null);
+
+  const canSubmit =
+    keyword.trim() &&
+    (locationMode === "address"
+      ? location.trim()
+      : lat.trim() && lng.trim());
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
-    if (!keyword.trim() || !location.trim()) return;
+    if (!canSubmit) return;
 
     setLoading(true);
     setError(null);
@@ -24,15 +35,27 @@ export default function Home() {
       const scraperUrl = process.env.NEXT_PUBLIC_SCRAPER_API_URL;
       if (!scraperUrl) throw new Error("Scraper URL not configured");
 
+      const body =
+        locationMode === "coords"
+          ? { keyword: keyword.trim(), lat: parseFloat(lat), lng: parseFloat(lng) }
+          : { keyword: keyword.trim(), location: location.trim() };
+
       const res = await fetch(`${scraperUrl}/api/scrape`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keyword: keyword.trim(), location: location.trim() }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
+
       setResults(data.results);
-      setSearchedFor({ keyword: keyword.trim(), location: location.trim() });
+      setSearchedFor({
+        keyword: keyword.trim(),
+        label:
+          locationMode === "coords"
+            ? `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}`
+            : location.trim(),
+      });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -54,6 +77,7 @@ export default function Home() {
           onSubmit={handleSearch}
           className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col gap-4"
         >
+          {/* Row 1: Keyword + Location mode toggle */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-gray-700" htmlFor="keyword">
@@ -62,32 +86,88 @@ export default function Home() {
               <input
                 id="keyword"
                 type="text"
-                placeholder="e.g. plumber, dentist, coffee shop"
+                placeholder="e.g. plumber, dentist, funeral home"
                 value={keyword}
                 onChange={(e) => setKeyword(e.target.value)}
                 className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 required
               />
             </div>
+
             <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium text-gray-700" htmlFor="location">
-                Location
-              </label>
-              <input
-                id="location"
-                type="text"
-                placeholder="e.g. New York, NY or 90210"
-                value={location}
-                onChange={(e) => setLocation(e.target.value)}
-                className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-medium text-gray-700">Location</label>
+                {/* Mode toggle */}
+                <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setLocationMode("address")}
+                    className={`px-3 py-1 transition-colors ${
+                      locationMode === "address"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-gray-500 hover:bg-gray-50"
+                    }`}
+                  >
+                    Address
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLocationMode("coords")}
+                    className={`px-3 py-1 transition-colors ${
+                      locationMode === "coords"
+                        ? "bg-blue-600 text-white"
+                        : "bg-white text-gray-500 hover:bg-gray-50"
+                    }`}
+                  >
+                    Lat / Lng
+                  </button>
+                </div>
+              </div>
+
+              {locationMode === "address" ? (
+                <input
+                  id="location"
+                  type="text"
+                  placeholder="e.g. St George, UT 84790"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="Latitude (e.g. 37.1041)"
+                    value={lat}
+                    onChange={(e) => setLat(e.target.value)}
+                    className="w-1/2 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                  <input
+                    type="number"
+                    step="any"
+                    placeholder="Longitude (e.g. -113.5684)"
+                    value={lng}
+                    onChange={(e) => setLng(e.target.value)}
+                    className="w-1/2 rounded-lg border border-gray-300 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    required
+                  />
+                </div>
+              )}
+
+              {locationMode === "coords" && (
+                <p className="text-xs text-gray-400">
+                  Right-click any spot on Google Maps → "What&apos;s here?" to copy exact coordinates.
+                </p>
+              )}
             </div>
           </div>
 
           <button
             type="submit"
-            disabled={loading || !keyword.trim() || !location.trim()}
+            disabled={loading || !canSubmit}
             className="self-start rounded-lg bg-blue-600 text-white px-6 py-2.5 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Searching…" : "Search Competitors"}
@@ -107,7 +187,7 @@ export default function Home() {
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
             <span className="text-sm font-medium">Opening browser, spoofing location, scraping results…</span>
-            <span className="text-xs text-gray-400">This takes ~20–30 seconds</span>
+            <span className="text-xs text-gray-400">This takes ~2 minutes</span>
           </div>
         )}
 
@@ -117,7 +197,7 @@ export default function Home() {
               <p className="text-sm text-gray-600">
                 <span className="font-semibold text-gray-900">{results.length} results</span>{" "}
                 for <span className="font-medium">"{searchedFor?.keyword}"</span> near{" "}
-                <span className="font-medium">{searchedFor?.location}</span>
+                <span className="font-medium">{searchedFor?.label}</span>
               </p>
               {results.length > 0 && (
                 <button
