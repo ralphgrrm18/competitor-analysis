@@ -21,14 +21,17 @@ export default function Home() {
     setResults(null);
 
     try {
-      const res = await fetch("/api/competitors", {
+      const scraperUrl = process.env.NEXT_PUBLIC_SCRAPER_API_URL;
+      if (!scraperUrl) throw new Error("Scraper URL not configured");
+
+      const res = await fetch(`${scraperUrl}/api/scrape`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keyword: keyword.trim(), location: location.trim() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
-      setResults(data.competitors);
+      setResults(data.results);
       setSearchedFor({ keyword: keyword.trim(), location: location.trim() });
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
