@@ -7,6 +7,10 @@ import type { Competitor } from "@/lib/places";
 type LocationMode = "address" | "coords";
 type ScrapeMode = "maps" | "search";
 
+type ResultsCache = { maps: Competitor[] | null; search: Competitor[] | null };
+type SearchedFor = { keyword: string; label: string };
+type SearchedForCache = { maps: SearchedFor | null; search: SearchedFor | null };
+
 export default function Home() {
   const [keyword, setKeyword] = useState("");
   const [locationMode, setLocationMode] = useState<LocationMode>("address");
@@ -15,15 +19,19 @@ export default function Home() {
   const [lat, setLat] = useState("");
   const [lng, setLng] = useState("");
   const [loading, setLoading] = useState(false);
-  const [results, setResults] = useState<Competitor[] | null>(null);
+  const [resultsCache, setResultsCache] = useState<ResultsCache>({ maps: null, search: null });
+  const [searchedForCache, setSearchedForCache] = useState<SearchedForCache>({ maps: null, search: null });
   const [error, setError] = useState<string | null>(null);
-  const [searchedFor, setSearchedFor] = useState<{ keyword: string; label: string; mode: ScrapeMode } | null>(null);
 
   const canSubmit =
     keyword.trim() &&
-    (locationMode === "address"
-      ? location.trim()
-      : lat.trim() && lng.trim());
+    (locationMode === "address" ? location.trim() : lat.trim() && lng.trim());
+
+  const activeResults = resultsCache[scrapeMode];
+  const activeSearchedFor = searchedForCache[scrapeMode];
+  const otherMode: ScrapeMode = scrapeMode === "maps" ? "search" : "maps";
+  const otherModeLabel = scrapeMode === "maps" ? "Google Search" : "Google Maps";
+  const hasOtherResults = resultsCache[otherMode] !== null;
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -31,11 +39,16 @@ export default function Home() {
 
     setLoading(true);
     setError(null);
-    setResults(null);
+    setResultsCache((prev) => ({ ...prev, [scrapeMode]: null }));
 
     try {
       const scraperUrl = process.env.NEXT_PUBLIC_SCRAPER_API_URL;
       if (!scraperUrl) throw new Error("Scraper URL not configured");
+
+      const label =
+        locationMode === "coords"
+          ? `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}`
+          : location.trim();
 
       const body =
         locationMode === "coords"
@@ -50,15 +63,11 @@ export default function Home() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Something went wrong");
 
-      setResults(data.results);
-      setSearchedFor({
-        keyword: keyword.trim(),
-        label:
-          locationMode === "coords"
-            ? `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}`
-            : location.trim(),
-        mode: scrapeMode,
-      });
+      setResultsCache((prev) => ({ ...prev, [scrapeMode]: data.results }));
+      setSearchedForCache((prev) => ({
+        ...prev,
+        [scrapeMode]: { keyword: keyword.trim(), label },
+      }));
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -80,7 +89,7 @@ export default function Home() {
           onSubmit={handleSearch}
           className="bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col gap-4"
         >
-          {/* Row 1: Keyword + Location mode toggle */}
+          {/* Row 1: Keyword + Location */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium text-gray-700" htmlFor="keyword">
@@ -100,7 +109,6 @@ export default function Home() {
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-medium text-gray-700">Location</label>
-                {/* Mode toggle */}
                 <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs">
                   <button
                     type="button"
@@ -162,7 +170,7 @@ export default function Home() {
 
               {locationMode === "coords" && (
                 <p className="text-xs text-gray-400">
-                  Right-click any spot on Google Maps → "What&apos;s here?" to copy exact coordinates.
+                  Right-click any spot on Google Maps → &quot;What&apos;s here?&quot; to copy exact coordinates.
                 </p>
               )}
             </div>
@@ -257,7 +265,11 @@ export default function Home() {
             disabled={loading || !canSubmit}
             className="self-start rounded-lg bg-blue-600 text-white px-6 py-2.5 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading ? "Searching…" : "Search Competitors"}
+            {loading
+              ? "Searching…"
+              : scrapeMode === "maps"
+              ? "Search Google Maps"
+              : "Search Google Local"}
           </button>
         </form>
 
@@ -273,43 +285,61 @@ export default function Home() {
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
               <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
             </svg>
-            <span className="text-sm font-medium">Opening browser, spoofing location, scraping results…</span>
-            <span className="text-xs text-gray-400">This takes ~2 minutes</span>
+            {scrapeMode === "maps" ? (
+              <>
+                <span className="text-sm font-medium">Opening browser, spoofing location, scraping results…</span>
+                <span className="text-xs text-gray-400">This takes ~2 minutes</span>
+              </>
+            ) : (
+              <span className="text-sm font-medium">Fetching Google Search local results…</span>
+            )}
           </div>
         )}
 
-        {results !== null && !loading && (
-          <div className="mt-8">
-            <div className="flex items-center justify-between mb-4">
-              <p className="text-sm text-gray-600">
-                <span className="font-semibold text-gray-900">{results.length} results</span>{" "}
-                for <span className="font-medium">"{searchedFor?.keyword}"</span> near{" "}
-                <span className="font-medium">{searchedFor?.label}</span>
-                {searchedFor?.mode && (
-                  <span className="ml-2 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
-                    {searchedFor.mode === "maps" ? "Google Maps" : "Google Search"}
-                  </span>
-                )}
-              </p>
-              {results.length > 0 && (
-                <button
-                  onClick={() => exportCSV(results, searchedFor?.keyword ?? "results")}
-                  className="text-xs text-blue-600 hover:text-blue-700 font-medium border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors"
-                >
-                  Export CSV
-                </button>
-              )}
-            </div>
-
-            {results.length === 0 ? (
-              <div className="text-center py-16 text-gray-400 text-sm">
-                No results found. Try a different keyword or location.
+        {/* Results area */}
+        {!loading && (
+          <div className="mt-8 flex flex-col gap-4">
+            {/* Hint when other mode has results */}
+            {hasOtherResults && activeResults === null && !error && (
+              <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
+                You have <span className="font-semibold">{otherModeLabel}</span> results cached.
+                Click <span className="font-semibold">Search {scrapeMode === "maps" ? "Google Maps" : "Google Local"}</span> to fetch{" "}
+                <span className="font-semibold">{scrapeMode === "maps" ? "Google Maps" : "Google Search"}</span> rankings for the same keyword.
               </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {results.map((c) => (
-                  <CompetitorCard key={c.rank} competitor={c} rank={c.rank} />
-                ))}
+            )}
+
+            {activeResults !== null && (
+              <div>
+                <div className="flex items-center justify-between mb-4">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-semibold text-gray-900">{activeResults.length} results</span>{" "}
+                    for <span className="font-medium">&quot;{activeSearchedFor?.keyword}&quot;</span> near{" "}
+                    <span className="font-medium">{activeSearchedFor?.label}</span>
+                    <span className="ml-2 inline-flex items-center rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+                      {scrapeMode === "maps" ? "Google Maps" : "Google Search"}
+                    </span>
+                  </p>
+                  {activeResults.length > 0 && (
+                    <button
+                      onClick={() => exportCSV(activeResults, activeSearchedFor?.keyword ?? "results", scrapeMode)}
+                      className="text-xs text-blue-600 hover:text-blue-700 font-medium border border-blue-200 rounded-lg px-3 py-1.5 hover:bg-blue-50 transition-colors"
+                    >
+                      Export CSV
+                    </button>
+                  )}
+                </div>
+
+                {activeResults.length === 0 ? (
+                  <div className="text-center py-16 text-gray-400 text-sm">
+                    No results found. Try a different keyword or location.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {activeResults.map((c) => (
+                      <CompetitorCard key={c.rank} competitor={c} rank={c.rank} />
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -319,7 +349,7 @@ export default function Home() {
   );
 }
 
-function exportCSV(competitors: Competitor[], keyword: string) {
+function exportCSV(competitors: Competitor[], keyword: string, mode: ScrapeMode) {
   const headers = [
     "Rank", "Name", "Address", "Rating", "Reviews", "Category",
     "Phone", "Website", "Open Now", "Photos", "Maps URL",
@@ -343,7 +373,7 @@ function exportCSV(competitors: Competitor[], keyword: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `competitors-${keyword.replace(/\s+/g, "-")}.csv`;
+  a.download = `competitors-${keyword.replace(/\s+/g, "-")}-${mode}.csv`;
   a.click();
   URL.revokeObjectURL(url);
 }
