@@ -7,73 +7,89 @@ import type { Competitor } from "@/lib/places";
 type LocationMode = "address" | "coords";
 type ScrapeMode = "maps" | "search";
 
-type ResultsCache = { maps: Competitor[] | null; search: Competitor[] | null };
-type SearchedFor = { keyword: string; label: string };
+type ResultsCache   = { maps: Competitor[] | null; search: Competitor[] | null };
+type LoadingState   = { maps: boolean; search: boolean };
+type ErrorState     = { maps: string | null; search: string | null };
+type SearchedFor    = { keyword: string; label: string };
 type SearchedForCache = { maps: SearchedFor | null; search: SearchedFor | null };
 
 export default function Home() {
-  const [keyword, setKeyword] = useState("");
+  const [keyword, setKeyword]           = useState("");
   const [locationMode, setLocationMode] = useState<LocationMode>("address");
-  const [scrapeMode, setScrapeMode] = useState<ScrapeMode>("maps");
-  const [location, setLocation] = useState("");
-  const [lat, setLat] = useState("");
-  const [lng, setLng] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [scrapeMode, setScrapeMode]     = useState<ScrapeMode>("maps");
+  const [location, setLocation]         = useState("");
+  const [lat, setLat]                   = useState("");
+  const [lng, setLng]                   = useState("");
+
+  const [loadingState, setLoadingState] = useState<LoadingState>({ maps: false, search: false });
   const [resultsCache, setResultsCache] = useState<ResultsCache>({ maps: null, search: null });
   const [searchedForCache, setSearchedForCache] = useState<SearchedForCache>({ maps: null, search: null });
-  const [error, setError] = useState<string | null>(null);
+  const [errors, setErrors]             = useState<ErrorState>({ maps: null, search: null });
+
+  const isAnyLoading = loadingState.maps || loadingState.search;
 
   const canSubmit =
+    !isAnyLoading &&
     keyword.trim() &&
     (locationMode === "address" ? location.trim() : lat.trim() && lng.trim());
-
-  const activeResults = resultsCache[scrapeMode];
-  const activeSearchedFor = searchedForCache[scrapeMode];
-  const otherMode: ScrapeMode = scrapeMode === "maps" ? "search" : "maps";
-  const otherModeLabel = scrapeMode === "maps" ? "Google Search" : "Google Maps";
-  const hasOtherResults = resultsCache[otherMode] !== null;
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!canSubmit) return;
 
-    setLoading(true);
-    setError(null);
-    setResultsCache((prev) => ({ ...prev, [scrapeMode]: null }));
+    const scraperUrl = process.env.NEXT_PUBLIC_SCRAPER_API_URL;
+    if (!scraperUrl) { setErrors({ maps: "Scraper URL not configured", search: null }); return; }
 
-    try {
-      const scraperUrl = process.env.NEXT_PUBLIC_SCRAPER_API_URL;
-      if (!scraperUrl) throw new Error("Scraper URL not configured");
+    const label =
+      locationMode === "coords"
+        ? `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}`
+        : location.trim();
 
-      const label =
-        locationMode === "coords"
-          ? `${parseFloat(lat).toFixed(5)}, ${parseFloat(lng).toFixed(5)}`
-          : location.trim();
+    const baseBody =
+      locationMode === "coords"
+        ? { keyword: keyword.trim(), lat: parseFloat(lat), lng: parseFloat(lng) }
+        : { keyword: keyword.trim(), location: location.trim() };
 
-      const body =
-        locationMode === "coords"
-          ? { keyword: keyword.trim(), lat: parseFloat(lat), lng: parseFloat(lng), mode: scrapeMode }
-          : { keyword: keyword.trim(), location: location.trim(), mode: scrapeMode };
+    // Reset both modes
+    setLoadingState({ maps: true, search: true });
+    setResultsCache({ maps: null, search: null });
+    setErrors({ maps: null, search: null });
+    setSearchedForCache({ maps: null, search: null });
 
-      const res = await fetch(`${scraperUrl}/api/scrape`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Something went wrong");
+    async function fetchMode(mode: ScrapeMode) {
+      try {
+        const res = await fetch(`${scraperUrl}/api/scrape`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...baseBody, mode }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Something went wrong");
 
-      setResultsCache((prev) => ({ ...prev, [scrapeMode]: data.results }));
-      setSearchedForCache((prev) => ({
-        ...prev,
-        [scrapeMode]: { keyword: keyword.trim(), label },
-      }));
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Unknown error");
-    } finally {
-      setLoading(false);
+        setResultsCache((prev) => ({ ...prev, [mode]: data.results }));
+        setSearchedForCache((prev) => ({
+          ...prev,
+          [mode]: { keyword: keyword.trim(), label },
+        }));
+      } catch (err) {
+        setErrors((prev) => ({
+          ...prev,
+          [mode]: err instanceof Error ? err.message : "Unknown error",
+        }));
+      } finally {
+        setLoadingState((prev) => ({ ...prev, [mode]: false }));
+      }
     }
+
+    // Fire both concurrently — Search (SerpAPI) finishes in ~2s,
+    // Maps (Playwright) finishes in ~2 min. Results appear as each completes.
+    Promise.all([fetchMode("maps"), fetchMode("search")]);
   }
+
+  const activeResults    = resultsCache[scrapeMode];
+  const activeSearchedFor = searchedForCache[scrapeMode];
+  const activeLoading    = loadingState[scrapeMode];
+  const activeError      = errors[scrapeMode];
 
   return (
     <main className="min-h-screen">
@@ -81,7 +97,7 @@ export default function Home() {
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Competitor Analysis</h1>
           <p className="text-gray-500 mt-1 text-sm">
-            Real-time Google Maps results scraped from the exact geolocation you specify.
+            Runs Google Maps and Google Search simultaneously — toggle between results instantly.
           </p>
         </div>
 
@@ -262,54 +278,99 @@ export default function Home() {
 
           <button
             type="submit"
-            disabled={loading || !canSubmit}
+            disabled={!canSubmit}
             className="self-start rounded-lg bg-blue-600 text-white px-6 py-2.5 text-sm font-semibold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {loading
-              ? "Searching…"
-              : scrapeMode === "maps"
-              ? "Search Google Maps"
-              : "Search Google Local"}
+            {isAnyLoading ? "Searching…" : "Search Competitors"}
           </button>
         </form>
 
-        {error && (
-          <div className="mt-6 rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-            {error}
+        {/* Dual progress status — shown while either mode is loading */}
+        {isAnyLoading && (
+          <div className="mt-6 bg-white rounded-2xl border border-gray-200 shadow-sm px-6 py-4 flex flex-col gap-3">
+            <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Fetching results</p>
+            {(["search", "maps"] as ScrapeMode[]).map((mode) => {
+              const done    = !loadingState[mode] && resultsCache[mode] !== null;
+              const failed  = !loadingState[mode] && !!errors[mode];
+              const running = loadingState[mode];
+              return (
+                <div key={mode} className="flex items-center gap-3">
+                  {running && (
+                    <svg className="animate-spin w-4 h-4 text-blue-500 shrink-0" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                    </svg>
+                  )}
+                  {done && (
+                    <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                  {failed && (
+                    <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  )}
+                  <span className={`text-sm ${done ? "text-gray-700 font-medium" : running ? "text-gray-600" : "text-red-500"}`}>
+                    {mode === "maps" ? "Google Maps" : "Google Search"}
+                  </span>
+                  {running && mode === "maps" && (
+                    <span className="text-xs text-gray-400">~2 min</span>
+                  )}
+                  {running && mode === "search" && (
+                    <span className="text-xs text-gray-400">a few seconds…</span>
+                  )}
+                  {done && (
+                    <span className="text-xs text-green-600">
+                      {resultsCache[mode]?.length} results ready
+                      {mode !== scrapeMode && (
+                        <button
+                          type="button"
+                          onClick={() => setScrapeMode(mode)}
+                          className="ml-2 underline hover:no-underline"
+                        >
+                          view
+                        </button>
+                      )}
+                    </span>
+                  )}
+                  {failed && (
+                    <span className="text-xs text-red-400 truncate">{errors[mode]}</span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
 
-        {loading && (
-          <div className="mt-10 flex flex-col items-center gap-3 text-gray-500">
-            <svg className="animate-spin w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-            {scrapeMode === "maps" ? (
-              <>
-                <span className="text-sm font-medium">Opening browser, spoofing location, scraping results…</span>
-                <span className="text-xs text-gray-400">This takes ~2 minutes</span>
-              </>
-            ) : (
-              <span className="text-sm font-medium">Fetching Google Search local results…</span>
-            )}
-          </div>
-        )}
-
-        {/* Results area */}
-        {!loading && (
-          <div className="mt-8 flex flex-col gap-4">
-            {/* Hint when other mode has results */}
-            {hasOtherResults && activeResults === null && !error && (
-              <div className="rounded-xl bg-blue-50 border border-blue-200 px-4 py-3 text-sm text-blue-700">
-                You have <span className="font-semibold">{otherModeLabel}</span> results cached.
-                Click <span className="font-semibold">Search {scrapeMode === "maps" ? "Google Maps" : "Google Local"}</span> to fetch{" "}
-                <span className="font-semibold">{scrapeMode === "maps" ? "Google Maps" : "Google Search"}</span> rankings for the same keyword.
+        {/* Results */}
+        {(activeResults !== null || activeError || activeLoading) && (
+          <div className="mt-6">
+            {activeError && !activeLoading && (
+              <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700 mb-4">
+                {activeError}
               </div>
             )}
 
-            {activeResults !== null && (
-              <div>
+            {activeLoading && (
+              <div className="flex flex-col items-center gap-3 text-gray-500 py-16">
+                <svg className="animate-spin w-8 h-8 text-blue-500" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                </svg>
+                <span className="text-sm font-medium">
+                  {scrapeMode === "maps"
+                    ? "Opening browser, spoofing location, scraping results…"
+                    : "Fetching Google Search local results…"}
+                </span>
+                {scrapeMode === "maps" && (
+                  <span className="text-xs text-gray-400">~2 minutes — Google Search results are already ready above</span>
+                )}
+              </div>
+            )}
+
+            {activeResults !== null && !activeLoading && (
+              <>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-sm text-gray-600">
                     <span className="font-semibold text-gray-900">{activeResults.length} results</span>{" "}
@@ -340,7 +401,7 @@ export default function Home() {
                     ))}
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
         )}
