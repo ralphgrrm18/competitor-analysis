@@ -36,6 +36,16 @@ function Badge({ label }: { label: string }) {
   );
 }
 
+function getTodayHours(weekdayHours: string[]): string | null {
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+  const today = days[new Date().getDay()];
+  const row = weekdayHours.find((h) => h.toLowerCase().startsWith(today.toLowerCase()));
+  if (!row) return null;
+  // Strip the day name prefix, leaving just the hours e.g. "8 AM–5 PM"
+  const hours = row.replace(new RegExp(`^${today}[\\s\\t:–-]*`, "i"), "").trim();
+  return `${today} ${hours}`;
+}
+
 export default function CompetitorCard({
   competitor,
   rank,
@@ -43,6 +53,8 @@ export default function CompetitorCard({
   competitor: Competitor;
   rank: number;
 }) {
+  const todayHours = getTodayHours(competitor.weekdayHours);
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
       <div className="flex items-start justify-between gap-3">
@@ -55,17 +67,11 @@ export default function CompetitorCard({
             <p className="text-xs text-gray-500 mt-0.5">{competitor.address}</p>
           </div>
         </div>
-        <span
-          className={`flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
-            competitor.openNow === true
-              ? "bg-green-50 text-green-700 border border-green-200"
-              : competitor.openNow === false
-              ? "bg-red-50 text-red-600 border border-red-200"
-              : "bg-gray-100 text-gray-500"
-          }`}
-        >
-          {competitor.openNow === true ? "Open" : competitor.openNow === false ? "Closed" : "Hours N/A"}
-        </span>
+        {todayHours && (
+          <span className="flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+            {todayHours}
+          </span>
+        )}
       </div>
 
       <div className="flex flex-wrap items-center gap-3 text-sm">
