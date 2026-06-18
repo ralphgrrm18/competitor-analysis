@@ -11,6 +11,7 @@ export interface Competitor {
   website: string | null;
   openNow: boolean | null;
   weekdayHours: string[];
+  todayHours: string | null;
   mapsUrl: string;
   photoCount: number;
 }

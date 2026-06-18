@@ -53,7 +53,7 @@ export default function CompetitorCard({
   competitor: Competitor;
   rank: number;
 }) {
-  const todayHours = getTodayHours(competitor.weekdayHours);
+  const todayHours = competitor.todayHours ?? getTodayHours(competitor.weekdayHours);
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex flex-col gap-3 hover:shadow-md transition-shadow">
