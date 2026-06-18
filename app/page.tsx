@@ -63,7 +63,13 @@ export default function Home() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ...baseBody, mode }),
         });
-        const data = await res.json();
+        const text = await res.text();
+        let data: { results?: Competitor[]; error?: string };
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error("Backend is starting up — wait 30 seconds and try again.");
+        }
         if (!res.ok) throw new Error(data.error ?? "Something went wrong");
 
         setResultsCache((prev) => ({ ...prev, [mode]: data.results }));
