@@ -14,5 +14,4 @@ export interface Competitor {
   todayHours: string | null;
   mapsUrl: string;
   photoCount: number;
-  latestReviewRecency: string | null;
 }
