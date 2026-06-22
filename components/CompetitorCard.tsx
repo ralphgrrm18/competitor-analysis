@@ -82,6 +82,9 @@ export default function CompetitorCard({
             {competitor.reviewCount !== null && (
               <span className="text-gray-400 text-xs">({competitor.reviewCount.toLocaleString()} reviews)</span>
             )}
+            {competitor.latestReviewRecency && (
+              <span className="text-gray-400 text-xs">· {competitor.latestReviewRecency}</span>
+            )}
           </div>
         )}
         {competitor.photoCount > 0 && (
