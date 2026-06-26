@@ -24,6 +24,7 @@ export default function Nav() {
         <span className="text-sm font-semibold text-gray-900 mr-4">Competitor Analysis</span>
         {link("/", "Automated Search")}
         {link("/manual", "Manual GBP Lookup")}
+        {link("/brand-visibility", "Brand Visibility")}
       </div>
     </nav>
   );
