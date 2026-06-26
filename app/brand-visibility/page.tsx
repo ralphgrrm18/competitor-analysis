@@ -330,7 +330,7 @@ export default function BrandVisibilityPage() {
                   {result.localPresence.phone && (
                     <p className="text-gray-600">{result.localPresence.phone}</p>
                   )}
-                  {result.localPresence.website && !result.localPresence.website.includes("google.com/search") && (
+                  {result.localPresence.website && (
                     <a
                       href={result.localPresence.website}
                       target="_blank"
