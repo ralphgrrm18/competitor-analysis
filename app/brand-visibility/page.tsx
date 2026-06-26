@@ -330,14 +330,14 @@ export default function BrandVisibilityPage() {
                   {result.localPresence.phone && (
                     <p className="text-gray-600">{result.localPresence.phone}</p>
                   )}
-                  {result.localPresence.website && (
+                  {result.localPresence.website && !result.localPresence.website.includes("google.com/search") && (
                     <a
                       href={result.localPresence.website}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-blue-600 hover:underline truncate"
+                      className="text-blue-600 hover:underline text-sm"
                     >
-                      {result.localPresence.website}
+                      {(() => { try { return new URL(result.localPresence.website).hostname.replace(/^www\./, ""); } catch { return "Visit Website"; } })()}
                     </a>
                   )}
                 </div>
